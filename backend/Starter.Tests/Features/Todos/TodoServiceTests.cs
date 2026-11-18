@@ -65,6 +65,24 @@ public sealed class TodoServiceTests
     }
 
     [Fact]
+    [Trait("Krav", "AK-1.3")]
+    public async Task Create_saves_a_todo_without_due_date()
+    {
+        // Arrange
+        var request = new CreateTodoRequest("Skicka offert");
+
+        // Act
+        var result = await _service.CreateAsync(request, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        var saved = Assert.Single(_repository.Saved);
+        Assert.Equal("Skicka offert", saved.Title);
+        Assert.Null(saved.DueDate);
+        Assert.Null(result.Data!.DueDate);
+    }
+
+    [Fact]
     public async Task MarkDone_returns_not_found_for_unknown_id()
     {
         var result = await _service.MarkDoneAsync(42, CancellationToken.None);
