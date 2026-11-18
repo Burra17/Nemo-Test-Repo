@@ -87,7 +87,7 @@ public sealed class TodoServiceTests
     public async Task Create_saves_the_due_date()
     {
         // Arrange: klockan står på 2026-11-16, så den 20:e är i framtiden
-        var request = new CreateTodoRequest("Skicka offert", new DateOnly(2026, 11, 20)); 
+        var request = new CreateTodoRequest("Skicka offert", new DateOnly(2026, 11, 20));
 
         // Act
         var result = await _service.CreateAsync(request, CancellationToken.None);
@@ -97,6 +97,23 @@ public sealed class TodoServiceTests
         var saved = Assert.Single(_repository.Saved);
         Assert.Equal(new DateOnly(2026, 11, 20), saved.DueDate);
         Assert.Equal(new DateOnly(2026, 11, 20), result.Data!.DueDate);
+    }
+
+    [Fact]
+    [Trait("Krav", "AK-1.2")]
+    public async Task Create_accepts_a_due_date_today()
+    {
+        // Arrange: klockan står på 2026-11-16, så den 16:e är idag
+        var request = new CreateTodoRequest("Skicka offert", new DateOnly(2026, 11, 16));
+
+        // Act
+        var result = await _service.CreateAsync(request, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        var saved = Assert.Single(_repository.Saved);
+        Assert.Equal(new DateOnly(2026, 11, 16), saved.DueDate);
+        Assert.Equal(new DateOnly(2026, 11, 16), result.Data!.DueDate);
     }
 
     [Fact]
