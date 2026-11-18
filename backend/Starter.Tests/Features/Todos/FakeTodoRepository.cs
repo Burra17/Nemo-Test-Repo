@@ -25,4 +25,7 @@ internal sealed class FakeTodoRepository : ITodoRepository
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<IReadOnlyList<Todo>> ListOverdueAsync(DateOnly today, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Todo>>(_todos.Where(t => t.DueDate != null && t.DueDate < today && !t.IsDone).OrderBy(t => t.DueDate).ToList());
 }
