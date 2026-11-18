@@ -16,4 +16,10 @@ public sealed class TodoRepository(AppDbContext db) : ITodoRepository
         await db.Todos.AddAsync(todo, cancellationToken);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => db.SaveChangesAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Todo>> ListOverdueAsync(DateOnly today, CancellationToken cancellationToken) =>
+        await db.Todos.AsNoTracking()
+            .Where(t => t.DueDate != null && t.DueDate < today && !t.IsDone)
+            .OrderBy(t => t.DueDate)
+            .ToListAsync(cancellationToken);
 }
