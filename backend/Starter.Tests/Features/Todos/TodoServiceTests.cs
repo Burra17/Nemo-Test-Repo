@@ -49,6 +49,74 @@ public sealed class TodoServiceTests
     }
 
     [Fact]
+    [Trait("Krav", "AK-1.2")]
+    public async Task Create_returns_validation_error_when_due_date_has_passed()
+    {
+        // Arrange
+        var dueDate = new DateOnly(2026, 11, 15); // klockan står på 2026-11-16, så det här är igår
+
+        // Act
+        var result = await _service.CreateAsync(new CreateTodoRequest("Skicka offert", dueDate), CancellationToken.None);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal(ErrorKind.Validation, result.Kind);
+        Assert.Empty(_repository.Saved);
+    }
+
+    [Fact]
+    [Trait("Krav", "AK-1.3")]
+    public async Task Create_saves_a_todo_without_due_date()
+    {
+        // Arrange
+        var request = new CreateTodoRequest("Skicka offert");
+
+        // Act
+        var result = await _service.CreateAsync(request, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        var saved = Assert.Single(_repository.Saved);
+        Assert.Equal("Skicka offert", saved.Title);
+        Assert.Null(saved.DueDate);
+        Assert.Null(result.Data!.DueDate);
+    }
+
+    [Fact]
+    [Trait("Krav", "AK-1.1")]
+    public async Task Create_saves_the_due_date()
+    {
+        // Arrange: klockan står på 2026-11-16, så den 20:e är i framtiden
+        var request = new CreateTodoRequest("Skicka offert", new DateOnly(2026, 11, 20));
+
+        // Act
+        var result = await _service.CreateAsync(request, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        var saved = Assert.Single(_repository.Saved);
+        Assert.Equal(new DateOnly(2026, 11, 20), saved.DueDate);
+        Assert.Equal(new DateOnly(2026, 11, 20), result.Data!.DueDate);
+    }
+
+    [Fact]
+    [Trait("Krav", "AK-1.2")]
+    public async Task Create_accepts_a_due_date_today()
+    {
+        // Arrange: klockan står på 2026-11-16, så den 16:e är idag
+        var request = new CreateTodoRequest("Skicka offert", new DateOnly(2026, 11, 16));
+
+        // Act
+        var result = await _service.CreateAsync(request, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        var saved = Assert.Single(_repository.Saved);
+        Assert.Equal(new DateOnly(2026, 11, 16), saved.DueDate);
+        Assert.Equal(new DateOnly(2026, 11, 16), result.Data!.DueDate);
+    }
+
+    [Fact]
     public async Task MarkDone_returns_not_found_for_unknown_id()
     {
         var result = await _service.MarkDoneAsync(42, CancellationToken.None);
