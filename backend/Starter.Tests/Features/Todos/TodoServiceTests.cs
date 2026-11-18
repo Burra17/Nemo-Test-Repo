@@ -49,6 +49,22 @@ public sealed class TodoServiceTests
     }
 
     [Fact]
+    [Trait("Krav", "AK-1.2")]
+    public async Task Create_returns_validation_error_when_due_date_has_passed()
+    {
+        // Arrange
+        var dueDate = new DateOnly(2026, 11, 15); // klockan står på 2026-11-16, så det här är igår
+
+        // Act
+        var result = await _service.CreateAsync(new CreateTodoRequest("Skicka offert", dueDate), CancellationToken.None);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal(ErrorKind.Validation, result.Kind);
+        Assert.Empty(_repository.Saved);
+    }
+
+    [Fact]
     public async Task MarkDone_returns_not_found_for_unknown_id()
     {
         var result = await _service.MarkDoneAsync(42, CancellationToken.None);
