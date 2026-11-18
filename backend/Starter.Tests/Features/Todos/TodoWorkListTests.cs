@@ -41,4 +41,23 @@ public sealed class TodoWorkListTests
         // Assert
         Assert.Equal(["Igår", "Idag", "Imorgon"], ordered.Select(t => t.Title));
     }
+
+    [Fact]
+    [Trait("Krav", "AK-3.1")]
+    public void Order_puts_the_oldest_todo_first_when_due_dates_are_equal()
+    {
+        // Arrange: samma datum, och den som skapades sist (högst id) ligger först
+        var todos = new List<Todo>
+        {
+            new() { Id = 2, Title = "Skapad sist", DueDate = new DateOnly(2026, 11, 16) },
+            new() { Id = 1, Title = "Skapad först", DueDate = new DateOnly(2026, 11, 16) },
+        };
+
+        // Act
+        var ordered = TodoWorkList.Order(todos);
+
+        // Assert
+        Assert.Equal(["Skapad först", "Skapad sist"], ordered.Select(t => t.Title));
+    }
+
 }
