@@ -84,11 +84,15 @@ utvecklare kunna skriva olika tester.*
 som ska vara klart först blir gjort först.
 
 - **AK-3.1** Givet tre uppgifter som inte är klara, med förfallodatum igår, idag och imorgon, när jag
-  hämtar arbetslistan, så kommer de i ordningen igår, idag, imorgon.
+  hämtar arbetslistan, så kommer de i ordningen igår, idag, imorgon. ⚠️ improviserat: uppgifter med
+  samma förfallodatum kommer i den ordning de skapades (lägst id först).
 - **AK-3.2** Givet en uppgift utan förfallodatum och en med förfallodatum om 30 dagar, när jag
   hämtar arbetslistan, så kommer uppgiften utan förfallodatum sist.
 - **AK-3.3** ⚠️ improviserat (upptäckt i use caset, undantag U1). Givet att API:t inte svarar, när
   arbetslistan laddas i appen, så visas ett felmeddelande, inte en tom lista.
+- **AK-3.4** ⚠️ improviserat (upptäckt när testerna skrevs, alternativt flöde A5). Givet en klar
+  uppgift med förfallodatum igår och en uppgift som inte är klar med förfallodatum imorgon, när jag
+  hämtar arbetslistan, så kommer den klara uppgiften sist.
 
 ### Story 4: Mäta om vi blir bättre
 
@@ -126,6 +130,7 @@ vet om teamet missar färre deadlines utan att behöva räkna för hand.
 | A2 | Uppgiften ska vara klar idag, och det är fortfarande idag (Kims bugg). Den visas inte som försenad. | AK-2.1 |
 | A3 | En uppgift blir klar för sent. Den räknas som klar sent i statistiken. | AK-4.2 |
 | A4 | En uppgift saknar förfallodatum. Den hamnar sist och blir aldrig försenad. | AK-3.2, AK-2.4 |
+| A5 | En uppgift är redan klar. Den hamnar sist i listan, eftersom den inte behöver göras. | AK-3.4 *(saknades, lades till)* |
 
 ### Undantagsflöden
 
