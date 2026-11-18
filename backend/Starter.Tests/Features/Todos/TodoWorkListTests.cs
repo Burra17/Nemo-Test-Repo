@@ -22,4 +22,23 @@ public sealed class TodoWorkListTests
         // Assert
         Assert.Equal(["Med datum", "Utan datum"], ordered.Select(t => t.Title));
     }
+
+    [Fact]
+    [Trait("Krav", "AK-3.1")]
+    public void Order_sorts_by_due_date_with_the_earliest_first()
+    {
+        // Arrange: blandad ordning, så testet inte blir grönt av en slump
+        var todos = new List<Todo>
+        {
+            new() { Title = "Imorgon", DueDate = new DateOnly(2026, 11, 17) },
+            new() { Title = "Igår", DueDate = new DateOnly(2026, 11, 15) },
+            new() { Title = "Idag", DueDate = new DateOnly(2026, 11, 16) },
+        };
+
+        // Act
+        var ordered = TodoWorkList.Order(todos);
+
+        // Assert
+        Assert.Equal(["Igår", "Idag", "Imorgon"], ordered.Select(t => t.Title));
+    }
 }
