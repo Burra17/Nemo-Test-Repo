@@ -7,14 +7,14 @@ public sealed class TodoDeadlinesTests
 {
     [Fact]
     [Trait("Krav", "AK-2.1")]
-    public void A_todo_due_today_is_not_overdue_at_23_59()
+    public void A_todo_due_today_is_not_overdue()
     {
         // Arrange
-        var todo = new Todo { DueDate = new DateTime(2026, 11, 16) };
-        var now = new DateTime(2026, 11, 16, 23, 59, 0);
+        var today = new DateOnly(2026, 11, 16);
+        var todo = new Todo { DueDate = today };
 
         // Act
-        var isOverdue = TodoDeadlines.IsOverdue(todo, now);
+        var isOverdue = TodoDeadlines.IsOverdue(todo, today);
 
         // Assert
         Assert.False(isOverdue);

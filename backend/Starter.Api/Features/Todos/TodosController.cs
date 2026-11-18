@@ -39,11 +39,12 @@ public sealed class TodosController(TodoService service, AppDbContext db) : Cont
     {
         var all = await db.Todos.ToListAsync();
         var result = new List<object>();
+        var today = DateOnly.FromDateTime(DateTime.Now);
         foreach (var t in all)
         {
-            if (TodoDeadlines.IsOverdue(t, DateTime.Now))
+            if (TodoDeadlines.IsOverdue(t, today))
             {
-                result.Add(new { t.Id, t.Title, t.DueDate, DaysLate = (DateTime.Now - t.DueDate.Value).Days });
+                result.Add(new { t.Id, t.Title, t.DueDate, DaysLate = today.DayNumber - t.DueDate!.Value.DayNumber });
             }
         }
 
