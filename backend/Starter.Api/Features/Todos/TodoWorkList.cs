@@ -6,7 +6,8 @@ public static class TodoWorkList
 {
     public static IReadOnlyList<Todo> Order(IEnumerable<Todo> todos) =>
         todos
-            .OrderBy(t => t.DueDate is null)
+            .OrderBy(t => t.IsDone)
+            .ThenBy(t => t.DueDate is null)
             .ThenBy(t => t.DueDate)
             .ThenBy(t => t.Id)
             .ToList();
