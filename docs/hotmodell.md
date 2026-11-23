@@ -123,3 +123,56 @@ Nummer 4 och 5 är klassiska misstag som lätt kommer in när nya funktioner byg
 - **Ingen loggning** (Repudiation). Utan loggning upptäcker vi aldrig om något av hoten ovan faktiskt händer.
 - **Ingen rate limiting** (Denial of service). Ett överbelastat API på morgonen drabbar alla fyra team, men ett
   internt verktyg är ett ganska osannolikt mål.
+
+## 5. Missbruksberättelser
+
+User stories för den som vill illa. Kriterierna säger vad som ska **nekas**, och exakt vilket svar API:t ska ge.
+I alla exempel tillhör angriparen **säljteamet**, och uppgiften **X** tillhör **ekonomiteamet**.
+
+**Varför 404 och inte 403:** ett 403 berättar att uppgiften finns, men att man inte får se den. Ett 404 avslöjar
+ingenting. För angriparen ska ett annat teams uppgift se ut precis som en uppgift som inte finns.
+
+Hot 1 i topp fem (API:t litar på det team klienten påstår) har ingen egen berättelse än. Hur kriteriet ska se ut
+beror på hur appen får reda på vilket team anroparen tillhör, och det vet vi först när vi ser appen med team.
+Berättelserna nedan förutsätter att API:t vet vilket team anroparen *verkligen* tillhör.
+
+### MB-1: Läsa ett annat teams uppgifter (hot 2)
+
+**Som** medlem i säljteamet **vill jag** läsa ekonomiteamets uppgifter **så att** jag får veta saker jag inte
+ska veta.
+
+- **MB-1.1** Givet att jag tillhör säljteamet och att uppgift X tillhör ekonomiteamet, när jag hämtar uppgift X
+  med dess id, så får jag svaret 404 och svaret innehåller ingen av uppgiftens data, till exempel inte titeln.
+- **MB-1.2** Givet att jag tillhör säljteamet och att ekonomiteamet har uppgifter, när jag hämtar listan, de
+  försenade uppgifterna eller statistiken, så finns ingen av ekonomiteamets uppgifter med, och de räknas inte in
+  i några siffror.
+
+### MB-2: Ändra ett annat teams uppgifter (hot 3)
+
+**Som** missnöjd medlem i säljteamet **vill jag** bocka av eller ändra ekonomiteamets uppgifter **så att** de
+missar sina deadlines utan att märka det.
+
+- **MB-2.1** Givet att jag tillhör säljteamet och att uppgift X tillhör ekonomiteamet och inte är klar, när jag
+  markerar uppgift X som klar, så får jag svaret 404, och uppgift X är fortfarande inte klar.
+- **MB-2.2** Givet att jag tillhör säljteamet och att uppgift X tillhör ekonomiteamet, när jag ändrar eller tar
+  bort uppgift X, så får jag svaret 404, och uppgift X är oförändrad.
+
+### MB-3: Skicka med fält som formuläret aldrig visar (hot 4)
+
+**Som** medlem i säljteamet **vill jag** skicka med fält som formuläret inte har **så att** jag kan flytta
+uppgifter mellan team, eller ändra sådant jag inte får ändra.
+
+- **MB-3.1** Givet att jag tillhör säljteamet, när jag skapar en uppgift och skickar med ekonomiteamets
+  team-id i JSON-kroppen, så svarar API:t 201, och uppgiften tillhör säljteamet. Ekonomiteamet ser den inte.
+- **MB-3.2** Givet att jag tillhör säljteamet och har en egen uppgift, när jag ändrar den och skickar med
+  ekonomiteamets team-id, så tillhör uppgiften fortfarande säljteamet.
+
+### MB-4: Söka med SQL i sökfältet (hot 5)
+
+**Som** medlem i säljteamet **vill jag** skriva SQL i sökfältet **så att** jag får se alla teams uppgifter på
+en gång.
+
+- **MB-4.1** Givet att både säljteamet och ekonomiteamet har uppgifter, när jag söker på `' OR 1=1 --`, så får
+  jag svaret 200 och bara säljteamets uppgifter som innehåller den texten, alltså inga alls.
+- **MB-4.2** Givet att det finns uppgifter, när jag söker på ett ensamt `'`, så får jag svaret 200 och inget
+  felmeddelande från databasen.
