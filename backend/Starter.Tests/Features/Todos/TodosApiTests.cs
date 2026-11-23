@@ -65,6 +65,23 @@ public sealed class TodosApiTests : IClassFixture<TodosApiTests.ApiFactory>
         Assert.Equal(new DateOnly(2026, 11, 16), created!.DueDate);
     }
 
+    [Fact]
+    [Trait("Krav", "AK-3.1")]
+    public async Task Get_returns_todos_in_worklist_order()
+    {
+        // Arrange: den tidigare uppgiften skapas först, så den har lägre id.
+        // Sorteras listan på id (nyaste först) kommer den sist, sorteras den på datum kommer den först.
+        await _client.PostAsJsonAsync("/api/todos", new CreateTodoRequest("Worklist tidigare", new DateOnly(2026, 11, 17)));
+        await _client.PostAsJsonAsync("/api/todos", new CreateTodoRequest("Worklist senare", new DateOnly(2026, 11, 20)));
+
+        // Act
+        var todos = await _client.GetFromJsonAsync<List<TodoResponse>>("/api/todos");
+
+        // Assert: andra tester delar databasen, så bara våra två uppgifter jämförs
+        var mine = todos!.Where(t => t.Title.StartsWith("Worklist")).Select(t => t.Title);
+        Assert.Equal(["Worklist tidigare", "Worklist senare"], mine);
+    }
+
     public sealed class ApiFactory : WebApplicationFactory<Program>
     {
         public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 11, 16, 12, 0, 0, TimeSpan.Zero));
