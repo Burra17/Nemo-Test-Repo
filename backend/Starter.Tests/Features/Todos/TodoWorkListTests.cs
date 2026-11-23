@@ -60,4 +60,21 @@ public sealed class TodoWorkListTests
         Assert.Equal(["Skapad först", "Skapad sist"], ordered.Select(t => t.Title));
     }
 
+    [Fact]
+    [Trait("Krav", "AK-3.4")]
+    public void Order_puts_done_todos_last()
+    {
+        // Arrange: den klara uppgiften har det tidigaste datumet, så utan regeln kommer den först
+        var todos = new List<Todo>
+        {
+            new() { Title = "Klar", IsDone = true, DueDate = new DateOnly(2026, 11, 15) },
+            new() { Title = "Inte klar", DueDate = new DateOnly(2026, 11, 17) },
+        };
+
+        // Act
+        var ordered = TodoWorkList.Order(todos);
+
+        // Assert
+        Assert.Equal(["Inte klar", "Klar"], ordered.Select(t => t.Title));
+    }
 }
