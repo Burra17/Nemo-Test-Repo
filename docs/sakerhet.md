@@ -372,7 +372,41 @@ npm audit
 
 ### OWASP ZAP baseline
 
-*(fylls i på torsdag: antal fynd per risknivå på `exercise/vecka-3-holes` och på den lagade branchen)*
+Kört 2026-11-26 med Docker, mot båda versionerna samtidigt: den sårbara `exercise/vecka-3-holes` på port 5070 och
+den lagade `exercise/vecka-3` på port 5071, båda i Development.
+
+```powershell
+docker run --rm -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:5070/api/todos
+docker run --rm -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:5071/api/todos
+```
+
+| Risknivå | Före (sårbar) | Efter (sex hål lagade) |
+|---|---|---|
+| Hög | 0 | 0 |
+| Medel | 0 | 0 |
+| Låg | 2 | 2 |
+| Information | 1 (5 ställen) | 1 (4 ställen) |
+| `FAIL` | 0 | 0 |
+
+| Fynd | Risknivå | Före | Efter |
+|---|---|---|---|
+| X-Content-Type-Options Header Missing [10021] | Låg | 1 | 1 |
+| Cross-Origin-Resource-Policy Header Missing or Invalid [90004] | Låg | 1 | 1 |
+| Storable and Cacheable Content [10049] | Information | 5 | 4 |
+
+**Siffran ändrades nästan inte**, och ingen av de sex lagningarna syns som ett färre fynd. Den enda skillnaden är att
+`/api/todos` inte längre räknas som cachebar. Det beror troligen på CORS-lagningen: när bara en origin är tillåten
+lägger API:t till `Vary: Origin` i svaret, och det ändrar hur ZAP bedömer cachning.
+
+**Varför ZAP inte hittade något av de sex hålen:**
+- En baseline-skanning **anfaller inte**. Den skickar inga andra id:n (hål 1), inga extra fält (hål 2) och inga `'`
+  i sökningen (hål 3). Den läser bara svaren.
+- ZAP hittade bara en endpoint, `/api/todos`. JSON-svaret innehåller inga länkar, så spindeln kan inte gissa
+  `/search`, `/overdue` eller `/{id}`.
+- ZAP vet inte att det finns team, och kan därför inte veta att en uppgift tillhör fel team.
+- Ingen förfrågan kraschade, så stacktracen (hål 4) syntes aldrig.
+- ZAP skickade ingen `Origin`-header, så `Access-Control-Allow-Origin: *` (hål 5) syntes aldrig.
+- ZAP gjorde bara sex anrop, så rate limiting (hål 6) testades aldrig.
 
 ### Vad verktygen inte hittade, men vi gjorde
 
