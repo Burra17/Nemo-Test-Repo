@@ -33,7 +33,7 @@ public sealed class TodoRepository(AppDbContext db, TeamContext team) : ITodoRep
             .ToListAsync(cancellationToken);
 
     public Task<Todo?> FindAsync(int id, CancellationToken cancellationToken) =>
-        db.Todos.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+        db.Todos.Where(t => t.TeamId == TeamId).FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
 
     public async Task AddAsync(Todo todo, CancellationToken cancellationToken)
     {
