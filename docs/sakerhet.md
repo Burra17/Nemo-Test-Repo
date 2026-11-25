@@ -62,6 +62,11 @@ Alla fyra committades röda innan lagningen.
 | MB-1.1 | `Another_teams_todo_returns_404_and_no_data` |
 | MB-2.1 | `Marking_another_teams_todo_done_returns_404` |
 | MB-2.2 | `Updating_another_teams_todo_returns_404`, `Deleting_another_teams_todo_returns_404` |
+| MB-1.2 | `TeamListsTests`: listan, de försenade och statistiken visar inget från andra team |
+
+MB-1.2 var aldrig ett hål: listan, de försenade och statistiken filtrerade redan på team. Testerna lades till
+efteråt för att skydda kravet. De var gröna från början, men blir röda om team-filtret tas bort ur
+`TodoRepository` (kontrollerat genom att tillfälligt ta bort filtret).
 
 ```powershell
 dotnet test --filter "Abuse~MB-"
