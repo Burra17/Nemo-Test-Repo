@@ -76,3 +76,68 @@ db.Todos.Where(t => t.TeamId == TeamId).FirstOrDefaultAsync(t => t.Id == id, can
 
 Alla fyra endpoints hämtar uppgiften via `FindAsync`, så en ändring lagar alla fyra. En uppgift som tillhör ett annat
 team ser nu ut precis som en uppgift som inte finns: 404, inte 403, så att angriparen inte får veta att den finns.
+
+## Hål 3: SQL-injektion i sökningen (MB-4)
+
+**Bevis 1 (MB-4.1):** sälj söker med SQL i sökfältet. `--data-urlencode` kodar texten så att den kan stå i adressen.
+
+```powershell
+curl.exe -G -H "X-Team: salj" "http://localhost:5069/api/todos/search" --data-urlencode "q=' OR 1=1 --"
+```
+
+Svar före lagning: alla tio uppgifter från alla fyra team, bland annat ekonomis *"Bonusunderlag ledningsgrupp
+(konfidentiellt)"* och *"Byt lösenord till bankportalen"*. Ingen av dem innehåller söktexten.
+
+Söktexten klistrades in direkt i SQL-satsen, så frågan blev:
+
+```sql
+SELECT * FROM Todos WHERE TeamId = 1 AND IsDeleted = 0 AND Title LIKE '%' OR 1=1 --%'
+```
+
+`'` avslutade texten, `OR 1=1` gjorde villkoret sant för alla rader, och `--` kommenterade bort resten, inklusive
+team-filtret.
+
+**Bevis 2 (MB-4.2):** ett ensamt citattecken.
+
+```powershell
+curl.exe -i -G -H "X-Team: salj" "http://localhost:5069/api/todos/search" --data-urlencode "q='"
+```
+
+Svar före lagning: `500 Internal Server Error` med `SqliteException: unrecognized token`.
+
+| Anrop | Svar före lagning | Svar efter lagning |
+|---|---|---|
+| Sök på `' OR 1=1 --` | 200 med alla teams uppgifter | 200 och `[]` |
+| Sök på `'` | 500 med databasfel | 200 och `[]` |
+| Sök på `Offert` (vanlig sökning) | Säljs Volvo-uppgift | Samma, oförändrat |
+
+**Test:** `backend/Starter.Tests/Features/Todos/SearchInjectionTests.cs`, båda committade röda innan lagningen.
+
+| Kriterium | Test |
+|---|---|
+| MB-4.1 | `Search_with_sql_returns_no_todos_from_other_teams` |
+| MB-4.2 | `Search_with_a_single_quote_returns_200_and_no_database_error` |
+
+**Lagning:** `TodoRepository.SearchAsync` använde `FromSqlRaw` med användarens text inklistrad. Den använder nu LINQ,
+så att söktexten skickas som en parameter och aldrig blir en del av SQL-satsen:
+
+```csharp
+.Where(t => t.TeamId == TeamId && !t.IsDeleted && EF.Functions.Like(t.Title, $"%{query}%"))
+```
+
+`EF.Functions.Like` i stället för `Title.Contains`, så att sökningen fortfarande inte skiljer på stora och små
+bokstäver. Lagningen tog också bort kodanalysatorns varning EF1002, som hade gjort CI rött.
+
+## Hål 4: felmeddelanden som avslöjar hur appen är byggd
+
+**Bevis (upptäckt under hål 3):** samma anrop med ett ensamt `'` gav, före lagningen av hål 3, ett svar med:
+
+- typen av databas: `Microsoft.Data.Sqlite.SqliteException`
+- hela stacktracen, från controllern ner till databasen
+- filsökvägar på utvecklarens dator, med radnummer: `...\Features\Todos\TodoRepository.cs:line 30`
+- alla headers i anropet, och vilken endpoint och controller som kördes
+
+En angripare lär sig alltså vilken databas appen använder, var den sårbara frågan finns, och att den kraschar på
+citattecken, vilket bekräftar att SQL-injektion fungerar. Svaret kom eftersom API:t kördes i `Development`.
+
+**Test och lagning:** *(fylls i)*
