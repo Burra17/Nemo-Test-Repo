@@ -38,4 +38,21 @@ public sealed class MassAssignmentTests(TodosApiTests.ApiFactory factory) :
         Assert.Contains("Smugglad av salj", await TitlesFor("salj"));
         Assert.DoesNotContain("Smugglad av salj", await TitlesFor("ekonomi"));
     }
+
+    [Fact]
+    [Trait("Abuse", "MB-3.2")]
+    public async Task Update_with_another_teams_id_keeps_the_todo_in_my_team()
+    {
+        // Arrange: sälj skapar en egen uppgift
+        var created = await ClientFor("salj").PostAsJsonAsync("/api/todos", new { title = "Säljs egen uppgift" });
+        var todo = await created.Content.ReadFromJsonAsync<TodoResponse>(Json);
+
+        // Act: sälj ändrar den och skickar med ett annat teams id
+        await ClientFor("salj").PutAsJsonAsync(
+            $"/api/todos/{todo!.Id}", new { title = "Säljs egen uppgift", priority = "Normal", teamId = 2 });
+
+        // Assert: uppgiften tillhör fortfarande sälj
+        var afterwards = await ClientFor("salj").GetAsync($"/api/todos/{todo.Id}");
+        Assert.Equal(HttpStatusCode.OK, afterwards.StatusCode);
+    }
 }
