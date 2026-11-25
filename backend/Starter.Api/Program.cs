@@ -25,8 +25,12 @@ builder.Services.AddScoped<TodoService>();
 var deadlineTimeZone = TimeZoneInfo.FindSystemTimeZoneById(builder.Configuration["Deadlines:TimeZone"] ?? "Europe/Stockholm");
 builder.Services.AddSingleton(sp => new DeadlineCalendar(sp.GetRequiredService<TimeProvider>(), deadlineTimeZone));
 
+var frontendOrigin = builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173";
 builder.Services.AddCors(options =>
-    options.AddPolicy(FrontendCorsPolicy, policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+    options.AddPolicy(FrontendCorsPolicy, policy => policy
+        .WithOrigins(frontendOrigin)
+        .WithHeaders("Content-Type", "X-Team")
+        .WithMethods("GET", "POST", "PUT", "DELETE")));
 
 var app = builder.Build();
 

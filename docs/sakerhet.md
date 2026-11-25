@@ -235,3 +235,65 @@ else
 Utanför Development svarar API:t nu med ett kort ProblemDetails (`"title":"An error occurred while processing your
 request.","status":500`), utan meddelande, stacktrace eller headers. Hela felet hamnar fortfarande i serverns logg,
 så att utvecklaren kan felsöka. I Development visas utvecklarsidan som förut (MB-5.2).
+
+## Hål 5: alla webbplatser får anropa API:t (MB-6)
+
+CORS skyddar inte mot curl, utan mot andra webbplatser. Om någon på ekonomi besöker en ond sida, får sidans
+JavaScript anropa vårt API från deras webbläsare. Det är `Access-Control-Allow-Origin` i svaret som avgör om
+webbläsaren låter sidan **läsa** svaret. Med curl kan vi låtsas vara webbläsaren genom att skicka en `Origin`-header.
+
+**Bevis 1 (MB-6.1):** en ond sida läser ekonomis lista.
+
+```powershell
+curl.exe -i -H "Origin: https://evil.example" -H "X-Team: ekonomi" http://localhost:5069/api/todos
+```
+
+Svar före lagning: `200 OK` med `Access-Control-Allow-Origin: *` och ekonomis uppgifter, bland annat *"Bonusunderlag
+ledningsgrupp (konfidentiellt)"*. `*` betyder att vilken sida som helst får läsa svaret.
+
+**Bevis 2:** webbläsarens förfrågan (preflight) innan ett anrop med `X-Team`.
+
+```powershell
+curl.exe -i -X OPTIONS -H "Origin: https://evil.example" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: X-Team" http://localhost:5069/api/todos
+```
+
+Svar före lagning: `204 No Content` med `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods: GET` och
+`Access-Control-Allow-Headers: X-Team`. Webbläsaren får alltså lov att skicka anropet från den onda sidan.
+
+**Orsak:** CORS-policyn i `Program.cs` använder `AllowAnyOrigin()`. Inställningen `Frontend:Origin`
+(`http://localhost:5173`) finns i `appsettings.json` men används inte.
+
+| Anrop | Svar före lagning | Svar efter lagning |
+|---|---|---|
+| `GET` med `Origin: https://evil.example` | `Access-Control-Allow-Origin: *` | 200, men ingen `Access-Control-Allow-Origin` |
+| Preflight från `https://evil.example` | 204 med `Access-Control-Allow-Origin: *` | 204 utan några `Access-Control-Allow-*`-headers |
+| `GET` med `Origin: http://localhost:5173` | `Access-Control-Allow-Origin: *` | `Access-Control-Allow-Origin: http://localhost:5173` |
+
+curl får fortfarande svaret från den onda sidans anrop, eftersom CORS inte stoppar något på servern. Men utan
+`Access-Control-Allow-Origin` vägrar webbläsaren att visa svaret för sidan, och efter en preflight utan godkännande
+skickar den aldrig själva anropet.
+
+**Test:** `backend/Starter.Tests/Features/Todos/CorsTests.cs`, båda committade röda innan lagningen.
+
+| Kriterium | Test |
+|---|---|
+| MB-6.1 | `Another_website_is_not_allowed_to_read_the_response` |
+| MB-6.2 | `Our_own_frontend_is_allowed_to_read_the_response` |
+
+MB-6.2 finns för att en "lagning" som tar bort CORS helt annars skulle bli grön på MB-6.1, men stoppa vår egen
+frontend.
+
+**Lagning:**
+
+```csharp
+var frontendOrigin = builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173";
+builder.Services.AddCors(options =>
+    options.AddPolicy(FrontendCorsPolicy, policy => policy
+        .WithOrigins(frontendOrigin)
+        .WithHeaders("Content-Type", "X-Team")
+        .WithMethods("GET", "POST", "PUT", "DELETE")));
+```
+
+Bara vår egen frontend, från inställningen `Frontend:Origin`, får läsa svaren. Headers och metoder är också
+begränsade till det frontenden faktiskt använder. Frontenden är provad efter lagningen: det går att byta team och
+skapa uppgifter.
