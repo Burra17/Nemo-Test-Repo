@@ -39,10 +39,7 @@ public sealed class TodoRepository(AppDbContext db, TeamContext team) : ITodoRep
 
     public async Task AddAsync(Todo todo, CancellationToken cancellationToken)
     {
-        if (todo.TeamId == 0)
-        {
-            todo.TeamId = TeamId;
-        }
+        todo.TeamId = TeamId;
 
         await db.Todos.AddAsync(todo, cancellationToken);
     }
