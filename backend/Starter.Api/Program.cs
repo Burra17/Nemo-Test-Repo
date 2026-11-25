@@ -63,7 +63,7 @@ app.Use(async (context, next) =>
     headers["X-Content-Type-Options"] = "nosniff";
     headers["X-Frame-Options"] = "DENY";
     headers["Referrer-Policy"] = "no-referrer";
-    headers["Cross-Origin-Resource-Policy"] = "same-site";
+    headers["Cross-Origin-Resource-Policy"] = "same-origin";
     await next();
 });
 
