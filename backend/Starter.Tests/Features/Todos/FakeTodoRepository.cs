@@ -12,7 +12,20 @@ internal sealed class FakeTodoRepository : ITodoRepository
     public IReadOnlyList<Todo> Saved => _todos;
 
     public Task<IReadOnlyList<Todo>> ListAsync(CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<Todo>>(_todos.OrderByDescending(t => t.Id).ToList());
+        Task.FromResult<IReadOnlyList<Todo>>(_todos.ToList());
+
+    public Task<IReadOnlyList<Todo>> ListOverdueAsync(DateOnly today, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Todo>>(_todos.Where(t => TodoDeadlines.IsOverdue(t, today)).ToList());
+
+    public Task<IReadOnlyList<Todo>> ListCompletedWithDueDateAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Todo>>(_todos.Where(t => t.IsDone && t.DueDate != null).ToList());
+
+    public Task<int> CountOverdueAsync(DateOnly today, CancellationToken cancellationToken) =>
+        Task.FromResult(_todos.Count(t => TodoDeadlines.IsOverdue(t, today)));
+
+    public Task<IReadOnlyList<Todo>> SearchAsync(string query, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Todo>>(
+            _todos.Where(t => t.Title.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList());
 
     public Task<Todo?> FindAsync(int id, CancellationToken cancellationToken) =>
         Task.FromResult(_todos.FirstOrDefault(t => t.Id == id));
@@ -23,6 +36,8 @@ internal sealed class FakeTodoRepository : ITodoRepository
         _todos.Add(todo);
         return Task.CompletedTask;
     }
+
+    public void Remove(Todo todo) => _todos.Remove(todo);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

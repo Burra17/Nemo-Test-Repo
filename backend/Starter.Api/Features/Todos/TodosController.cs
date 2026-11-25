@@ -15,6 +15,34 @@ public sealed class TodosController(TodoService service) : ControllerBase
         return Ok(result.Data);
     }
 
+    [HttpGet("search")]
+    public async Task<ActionResult<IReadOnlyList<TodoResponse>>> Search([FromQuery] string q, CancellationToken cancellationToken)
+    {
+        var result = await service.SearchAsync(q, cancellationToken);
+        return Ok(result.Data);
+    }
+
+    [HttpGet("overdue")]
+    public async Task<ActionResult<IReadOnlyList<OverdueTodoResponse>>> Overdue(CancellationToken cancellationToken)
+    {
+        var result = await service.ListOverdueAsync(cancellationToken);
+        return Ok(result.Data);
+    }
+
+    [HttpGet("stats")]
+    public async Task<ActionResult<DeadlineStatsResponse>> Stats(CancellationToken cancellationToken)
+    {
+        var result = await service.StatsAsync(cancellationToken);
+        return Ok(result.Data);
+    }
+
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<TodoResponse>> Get(int id, CancellationToken cancellationToken)
+    {
+        var result = await service.GetAsync(id, cancellationToken);
+        return result.Success ? Ok(result.Data) : ToProblem(result);
+    }
+
     [HttpPost]
     public async Task<ActionResult<TodoResponse>> Create(CreateTodoRequest request, CancellationToken cancellationToken)
     {
@@ -24,10 +52,24 @@ public sealed class TodosController(TodoService service) : ControllerBase
             : ToProblem(result);
     }
 
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<TodoResponse>> Update(int id, UpdateTodoRequest request, CancellationToken cancellationToken)
+    {
+        var result = await service.UpdateAsync(id, request, cancellationToken);
+        return result.Success ? Ok(result.Data) : ToProblem(result);
+    }
+
     [HttpPut("{id:int}/done")]
     public async Task<ActionResult<TodoResponse>> MarkDone(int id, CancellationToken cancellationToken)
     {
         var result = await service.MarkDoneAsync(id, cancellationToken);
+        return result.Success ? Ok(result.Data) : ToProblem(result);
+    }
+
+    [HttpDelete("{id:int}")]
+    public async Task<ActionResult<TodoResponse>> Delete(int id, CancellationToken cancellationToken)
+    {
+        var result = await service.DeleteAsync(id, cancellationToken);
         return result.Success ? Ok(result.Data) : ToProblem(result);
     }
 
