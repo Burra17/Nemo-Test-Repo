@@ -77,6 +77,53 @@ db.Todos.Where(t => t.TeamId == TeamId).FirstOrDefaultAsync(t => t.Id == id, can
 Alla fyra endpoints hämtar uppgiften via `FindAsync`, så en ändring lagar alla fyra. En uppgift som tillhör ett annat
 team ser nu ut precis som en uppgift som inte finns: 404, inte 403, så att angriparen inte får veta att den finns.
 
+## Hål 2: fält som formuläret aldrig visar (MB-3)
+
+Formuläret skickar bara titel, förfallodatum och prioritet. Men API:t tar emot fler fält än så, och sparar dem.
+JSON ligger i en fil, eftersom Windows PowerShell tar bort citattecknen om JSON skrivs direkt på kommandoraden.
+
+**Bevis 1 (MB-3.1):** sälj skapar en uppgift och skickar med `teamId`.
+
+```powershell
+'{"title":"Smugglad av salj","priority":"Normal","teamId":2}' | Out-File -Encoding ascii body.json
+curl.exe -i -H "X-Team: salj" -H "Content-Type: application/json" --data-binary "@body.json" http://localhost:5069/api/todos
+curl.exe -H "X-Team: ekonomi" http://localhost:5069/api/todos
+```
+
+Svar före lagning: `201 Created` (id 403), och *"Smugglad av salj"* ligger i **ekonomis** lista. Team 2 är ekonomi.
+Sälj kan alltså plantera uppgifter hos ekonomi som ser ut att komma från ekonomis eget team.
+
+**Bevis 2 (MB-3.2):** sälj flyttar sin egen uppgift 101 till ekonomi.
+
+```powershell
+'{"title":"Ring tillbaka till Volvo om offerten","priority":"High","teamId":2}' | Out-File -Encoding ascii body.json
+curl.exe -i -X PUT -H "X-Team: salj" -H "Content-Type: application/json" --data-binary "@body.json" http://localhost:5069/api/todos/101
+curl.exe -H "X-Team: ekonomi" http://localhost:5069/api/todos
+```
+
+Svar före lagning: `200 OK`, och Volvo-uppgiften ligger nu i ekonomis lista. Den har försvunnit från säljs lista.
+
+**Bevis 3 (MB-3.3):** sälj döljer sin uppgift 102 utan att ta bort den, med flaggan `isDeleted`.
+
+```powershell
+'{"title":"Uppdatera pipeline i CRM","priority":"Normal","isDeleted":true}' | Out-File -Encoding ascii body.json
+curl.exe -i -X PUT -H "X-Team: salj" -H "Content-Type: application/json" --data-binary "@body.json" http://localhost:5069/api/todos/102
+curl.exe -H "X-Team: salj" http://localhost:5069/api/todos
+curl.exe -i -H "X-Team: salj" http://localhost:5069/api/todos/102
+```
+
+Svar före lagning: `200 OK`. Uppgift 102 är borta ur säljs lista, fast ingen har gjort `DELETE`. Den syns inte
+heller i sökningen eller statistiken. Men `GET /api/todos/102` ger fortfarande `200` med uppgiften: appen behandlar
+"borttagen" olika på olika ställen.
+
+| Anrop som sälj | Svar före lagning | Svar efter lagning |
+|---|---|---|
+| `POST` med `teamId: 2` | 201, uppgiften hamnar hos ekonomi | |
+| `PUT /101` med `teamId: 2` | 200, uppgiften flyttas till ekonomi | |
+| `PUT /102` med `isDeleted: true` | 200, uppgiften försvinner ur listan | |
+
+**Test och lagning:** *(fylls i)*
+
 ## Hål 3: SQL-injektion i sökningen (MB-4)
 
 **Bevis 1 (MB-4.1):** sälj söker med SQL i sökfältet. `--data-urlencode` kodar texten så att den kan stå i adressen.
