@@ -297,3 +297,20 @@ builder.Services.AddCors(options =>
 Bara vår egen frontend, från inställningen `Frontend:Origin`, får läsa svaren. Headers och metoder är också
 begränsade till det frontenden faktiskt använder. Frontenden är provad efter lagningen: det går att byta team och
 skapa uppgifter.
+
+## Hål 6: obegränsat antal sökningar (MB-7)
+
+**Bevis:** sälj gör 200 sökningar i rad och räknar statuskoderna.
+
+```powershell
+1..200 | ForEach-Object { curl.exe -s -o NUL -w "%{http_code}`n" -H "X-Team: salj" "http://localhost:5069/api/todos/search?q=offert" } | Group-Object | Select-Object Name, Count
+```
+
+Svar före lagning: `200` på alla 200 anrop. Ingenting stoppar någon som anropar sökningen om och om igen, och en
+angripare kan köra samma loop i flera fönster samtidigt, tills API:t blir för långsamt för alla fyra teamen.
+
+| Anrop | Svar före lagning | Svar efter lagning |
+|---|---|---|
+| 200 sökningar i rad | 200 på alla | |
+
+**Test och lagning:** *(fylls i)*
