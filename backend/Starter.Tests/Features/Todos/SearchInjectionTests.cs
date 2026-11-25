@@ -36,4 +36,16 @@ public sealed class SearchInjectionTests(TodosApiTests.ApiFactory factory) :
         var todos = await response.Content.ReadFromJsonAsync<List<TodoResponse>>(Json);
         Assert.Empty(todos!);
     }
+
+    [Fact]
+    [Trait("Abuse", "MB-4.2")]
+    public async Task Search_with_a_single_quote_returns_200_and_no_database_error()
+    {
+        // Act: sälj söker på ett ensamt citattecken
+        var response = await ClientFor("salj").GetAsync(SearchUrl("'"));
+
+        // Assert: 200, och svaret avslöjar ingenting om databasen
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("SQLite", await response.Content.ReadAsStringAsync());
+    }
 }
