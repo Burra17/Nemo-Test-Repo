@@ -1,17 +1,45 @@
 ## Vad gör den här PR:en?
-<!-- En eller två meningar. Vad ändras, och varför? -->
 
-Fixes #<!-- issue-nummer. Måste vara på engelska (Fixes/Closes) för att GitHub ska stänga issuen automatiskt -->
+<!-- Beskriv kort VAD som ändrats och VARFÖR. Punktlista går bra. -->
 
-## Hur testade du?
-<!-- Vad körde du, vad klickade du på, vad såg du? -->
-- [ ] `dotnet test` / `npm test` går grönt lokalt
-- [ ] Jag har testat ändringen själv i appen
+Fixes #
+
+<!-- Skriv issue-numret efter "Fixes #" – den stängs automatiskt vid merge. Måste vara på engelska (Fixes/Closes/Resolves).
+     Löser PR:en bara en del av en issue: skriv "Del av #N" istället. Ingen issue: ta bort raden. -->
+
+## Val och avvägningar
+
+<!-- Vilka beslut tog du, och vad valde du bort? Det är oftast det granskaren frågar om.
+     Inget särskilt att nämna: ta bort rubriken. -->
+
+## Hur testade jag?
+
+<!-- Vad körde du, och vad såg du? Länka gärna till CI-körningar. -->
+
+- [ ] Manuellt i webbläsaren / Swagger: <!-- vad testade du? -->
 
 ## Checklista
-- [ ] Koden är formaterad (`dotnet format`, `npm run format`)
-- [ ] Inga lösenord, nycklar eller connection strings i koden
-- [ ] PR:en gör en sak, inte fem
-- [ ] README är uppdaterad om något nytt behövs för att starta projektet
 
-## Skärmbild (om något syns i UI:t)
+<!-- Samma kontroller som CI kör – bocka av innan du pushar. Stryk de rader som inte berörs (~~text~~). -->
+
+**Backend** (i `backend/`)
+
+- [ ] `dotnet format --verify-no-changes`
+- [ ] `dotnet test`
+
+**Frontend** (i `frontend/`)
+
+- [ ] `npm run lint`
+- [ ] `npm run format:check`
+- [ ] `npm test`
+- [ ] `npm run build`
+
+**Allmänt**
+
+- [ ] Inga lösenord, nycklar eller connection strings i koden
+- [ ] Dokumentation uppdaterad (CLAUDE.md, README.md, frontend-README – se steg 7 i CLAUDE.md)
+- [ ] Ändringar i `.github/` (workflows, mallar) är extra noga granskade
+
+## Skärmdump
+
+<!-- Valfritt – för ändringar i gränssnittet. Ta bort rubriken annars. -->
