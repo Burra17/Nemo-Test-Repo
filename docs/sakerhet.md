@@ -118,11 +118,25 @@ heller i sökningen eller statistiken. Men `GET /api/todos/102` ger fortfarande 
 
 | Anrop som sälj | Svar före lagning | Svar efter lagning |
 |---|---|---|
-| `POST` med `teamId: 2` | 201, uppgiften hamnar hos ekonomi | |
-| `PUT /101` med `teamId: 2` | 200, uppgiften flyttas till ekonomi | |
-| `PUT /102` med `isDeleted: true` | 200, uppgiften försvinner ur listan | |
+| `POST` med `teamId: 2` | 201, uppgiften hamnar hos ekonomi | 201, uppgiften hamnar hos sälj. Ekonomi ser den inte. |
+| `PUT /101` med `teamId: 2` | 200, uppgiften flyttas till ekonomi | 200, uppgiften finns kvar hos sälj |
+| `PUT /102` med `isDeleted: true` | 200, uppgiften försvinner ur listan | 200, uppgiften syns kvar i säljs lista |
 
-**Test och lagning:** *(fylls i)*
+**Test:** `backend/Starter.Tests/Features/Todos/MassAssignmentTests.cs`, alla tre committade röda innan lagningen.
+Testerna kontrollerar att uppgiften är kvar hos sälj, så de beror inte på vilket nummer ekonomi har.
+
+| Kriterium | Test |
+|---|---|
+| MB-3.1 | `Create_with_another_teams_id_keeps_the_todo_in_my_team` |
+| MB-3.2 | `Update_with_another_teams_id_keeps_the_todo_in_my_team` |
+| MB-3.3 | `Update_with_isDeleted_does_not_hide_the_todo` |
+
+**Lagning:**
+- `CreateTodoRequest` och `UpdateTodoRequest` innehåller bara de fält användaren får ändra: titel, förfallodatum och
+  prioritet. `TeamId` och `IsDeleted` är borttagna, så extra fält i JSON ignoreras.
+- `TodoService` kopierar inte längre team eller borttagen-flagga från requesten.
+- `TodoRepository.AddAsync` sätter alltid teamet från `X-Team`, i stället för bara när inget team redan var satt.
+  Det är försvar på djupet: även om fältet skulle komma tillbaka i en DTO skrivs det över här.
 
 ## Hål 3: SQL-injektion i sökningen (MB-4)
 

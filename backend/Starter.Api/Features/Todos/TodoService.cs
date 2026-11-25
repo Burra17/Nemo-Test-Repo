@@ -89,7 +89,6 @@ public sealed class TodoService(ITodoRepository repository, DeadlineCalendar cal
         todo.Title = title;
         todo.DueDate = request.DueDate;
         todo.Priority = request.Priority ?? todo.Priority;
-
         await repository.SaveChangesAsync(cancellationToken);
         return OperationResult<TodoResponse>.Ok(ToResponse(todo, today));
     }
