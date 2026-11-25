@@ -375,28 +375,39 @@ npm audit
 Kört 2026-11-26 med Docker, mot båda versionerna samtidigt: den sårbara `exercise/vecka-3-holes` på port 5070 och
 den lagade `exercise/vecka-3` på port 5071, båda i Development.
 
+Efter säkerhetsheaders (del 5) kördes skanningen en tredje gång, mot `fix/security-headers` på port 5069.
+
 ```powershell
 docker run --rm -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:5070/api/todos
 docker run --rm -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:5071/api/todos
+docker run --rm -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://host.docker.internal:5069/api/todos
 ```
 
-| Risknivå | Före (sårbar) | Efter (sex hål lagade) |
-|---|---|---|
-| Hög | 0 | 0 |
-| Medel | 0 | 0 |
-| Låg | 2 | 2 |
-| Information | 1 (5 ställen) | 1 (4 ställen) |
-| `FAIL` | 0 | 0 |
-
-| Fynd | Risknivå | Före | Efter |
+| Risknivå | Före (sårbar) | Efter (sex hål lagade) | Med säkerhetsheaders |
 |---|---|---|---|
-| X-Content-Type-Options Header Missing [10021] | Låg | 1 | 1 |
-| Cross-Origin-Resource-Policy Header Missing or Invalid [90004] | Låg | 1 | 1 |
-| Storable and Cacheable Content [10049] | Information | 5 | 4 |
+| Hög | 0 | 0 | 0 |
+| Medel | 0 | 0 | 0 |
+| Låg | 2 | 2 | **0** |
+| Information | 1 (5 ställen) | 1 (4 ställen) | 1 (4 ställen) |
+| `FAIL` | 0 | 0 | 0 |
 
-**Siffran ändrades nästan inte**, och ingen av de sex lagningarna syns som ett färre fynd. Den enda skillnaden är att
-`/api/todos` inte längre räknas som cachebar. Det beror troligen på CORS-lagningen: när bara en origin är tillåten
-lägger API:t till `Vary: Origin` i svaret, och det ändrar hur ZAP bedömer cachning.
+| Fynd | Risknivå | Före | Efter | Med headers |
+|---|---|---|---|---|
+| X-Content-Type-Options Header Missing [10021] | Låg | 1 | 1 | 0 |
+| Cross-Origin-Resource-Policy Header Missing or Invalid [90004] | Låg | 1 | 1 | 0 |
+| Storable and Cacheable Content [10049] | Information | 5 | 4 | 4 |
+
+**De sex lagningarna ändrade inte siffran.** Ingen av dem syns som ett färre fynd. Antalet ställen för *Storable and
+Cacheable Content* varierar lite mellan körningarna, beroende på vilka adresser ZAP:s spindel råkar prova.
+
+**Säkerhetsheaders tog bort båda låga fynden.** Med `Cross-Origin-Resource-Policy: same-site` flaggades fyndet
+fortfarande, eftersom ZAP bara godkänner `same-origin`. Med `same-origin` försvann det. Frontenden fungerar ändå,
+eftersom den använder `fetch` med CORS, och då gäller CORS-reglerna och inte CORP. Det provades manuellt: byta team
+och skapa uppgift fungerar.
+
+Fyndet *Storable and Cacheable Content* (information) lämnas medvetet. Det säger bara att svaren kan sparas i en cache.
+För uppgifter som är olika per team borde svaren egentligen ha `Cache-Control: no-store`, men det är inte ett av
+veckans hål och tas i så fall i en egen ändring.
 
 **Varför ZAP inte hittade något av de sex hålen:**
 - En baseline-skanning **anfaller inte**. Den skickar inga andra id:n (hål 1), inga extra fält (hål 2) och inga `'`
@@ -424,3 +435,48 @@ kod som någon *annan* har skrivit. Alla sex hålen fanns i vår egen kod:
 
 Gröna paketkontroller betyder alltså att paketen är uppdaterade, inte att appen är säker. Hålen hittades genom att
 läsa koden med hotmodellen bredvid, och genom att prova med curl.
+
+## Säkerhetsheaders (MB-8, torsdagens del 5)
+
+**Före:** ZAP flaggade att `X-Content-Type-Options` och `Cross-Origin-Resource-Policy` saknades, i både den sårbara
+och den lagade versionen.
+
+**Test:** `backend/Starter.Tests/Features/Todos/SecurityHeadersTests.cs`, ett `[Theory]` med en rad per header.
+Committat rött innan lagningen.
+
+| Kriterium | Header | Vad den ber webbläsaren om |
+|---|---|---|
+| MB-8.1 | `X-Content-Type-Options: nosniff` | Gissa inte filtyp. JSON ska aldrig tolkas som HTML eller skript. |
+| MB-8.2 | `X-Frame-Options: DENY` | Visa aldrig svaret i en ram på någon annans sida. |
+| MB-8.3 | `Referrer-Policy: no-referrer` | Skicka inte med adressen användaren kom ifrån. |
+| MB-8.4 | `Cross-Origin-Resource-Policy: same-origin` | Låt bara sidor från samma origin läsa svaret utan CORS. |
+
+**Lagning:** en liten middleware direkt efter `var app = builder.Build();`, så att headers kommer med i alla svar,
+även felsvar, 429 och 404:
+
+```csharp
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "no-referrer";
+    headers["Cross-Origin-Resource-Policy"] = "same-origin";
+    await next();
+});
+```
+
+MB-8.4 var först `same-site`, men ZAP godkände bara `same-origin`. Testet ändrades först och blev rött, sedan
+ändrades middlewaren.
+
+## Sammanfattning
+
+| | Antal |
+|---|---|
+| Missbruksberättelser | 8 (MB-1 till MB-8) |
+| Kriterier med test | 19 |
+| Missbrukstester (`[Trait("Abuse", ...)]`) | 21 körningar |
+| Tester som var röda innan lagningen | alla, utom MB-1.2 och MB-7.2 som skyddar beteende som redan var rätt |
+| Hål hittade för hand och lagade | 6 av 6 |
+| ZAP-fynd (låg) före → efter | 2 → 0 |
+| Kända sårbara paket | 0 (NuGet och npm) |
