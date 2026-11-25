@@ -28,8 +28,8 @@ public sealed class TodoRepository(AppDbContext db, TeamContext team) : ITodoRep
 
     public async Task<IReadOnlyList<Todo>> SearchAsync(string query, CancellationToken cancellationToken) =>
         await db.Todos
-            .FromSqlRaw($"SELECT * FROM Todos WHERE TeamId = {TeamId} AND IsDeleted = 0 AND Title LIKE '%{query}%'")
             .AsNoTracking()
+            .Where(t => t.TeamId == TeamId && !t.IsDeleted && EF.Functions.Like(t.Title, $"%{query}%"))
             .ToListAsync(cancellationToken);
 
     public Task<Todo?> FindAsync(int id, CancellationToken cancellationToken) =>
