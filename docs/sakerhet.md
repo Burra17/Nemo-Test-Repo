@@ -349,3 +349,44 @@ de inte delar räknare.
   inloggning finns (vecka 4) ska räknaren gälla per användare.
 - Ett fast fönster (fixed window) svarar med hela fönstrets längd i `Retry-After` (60 sekunder), även om fönstret
   börjar om tidigare. Klienten väntar alltså ibland lite längre än nödvändigt, men aldrig för kort.
+
+## Veckans siffror (Övning 8)
+
+### Sårbara paket
+
+Kört 2026-11-25 på branchen `exercise/vecka-3`, efter att alla sex hål var lagade (dotnet 10.0.401, node v24.21.0,
+npm 11.19.0).
+
+```powershell
+cd backend
+dotnet list Starter.slnx package --vulnerable --include-transitive
+
+cd ../frontend
+npm audit
+```
+
+| Verktyg | Vad det kontrollerar | Fynd |
+|---|---|---|
+| `dotnet list package --vulnerable --include-transitive` | Kända sårbarheter i NuGet-paket, även paket som våra paket i sin tur använder | 0 (Starter.Api, Starter.Tests, Starter.Benchmarks) |
+| `npm audit` | Kända sårbarheter i npm-paket i frontenden | 0 |
+
+### OWASP ZAP baseline
+
+*(fylls i på torsdag: antal fynd per risknivå på `exercise/vecka-3-holes` och på den lagade branchen)*
+
+### Vad verktygen inte hittade, men vi gjorde
+
+Båda paketkontrollerna gav **0 fynd**, men appen hade **sex säkerhetshål**. Verktygen letar efter kända sårbarheter i
+kod som någon *annan* har skrivit. Alla sex hålen fanns i vår egen kod:
+
+| Hål | Varför ett paketverktyg inte kan hitta det |
+|---|---|
+| 1. Byta id och komma åt ett annat teams uppgift | Det är ett fel i vår affärslogik: koden är korrekt C#, den glömmer bara att filtrera på team. |
+| 2. Fält som formuläret aldrig visar | DTO:erna tog emot fält som användaren inte skulle få sätta. Det är ett designval, inte ett känt paketfel. |
+| 3. SQL-injektion i sökningen | Kompilatorn varnade (EF1002), men ingen paketkontroll gör det. |
+| 4. Felmeddelanden med stacktrace | Det är en inställning i vår `Program.cs`. |
+| 5. CORS för alla webbplatser | Samma sak: en inställning i vår `Program.cs`. |
+| 6. Ingen rate limiting | Något som saknas, och verktyg letar bara efter det som finns. |
+
+Gröna paketkontroller betyder alltså att paketen är uppdaterade, inte att appen är säker. Hålen hittades genom att
+läsa koden med hotmodellen bredvid, och genom att prova med curl.
