@@ -6,17 +6,13 @@ namespace Starter.Api.Features.Todos;
 public sealed record CreateTodoRequest(
     string Title,
     DateOnly? DueDate = null,
-    Priority? Priority = null,
-    int? TeamId = null,
-    bool IsDeleted = false);
+    Priority? Priority = null);
 
 /// <summary>What a client sends to update a todo.</summary>
 public sealed record UpdateTodoRequest(
     string Title,
     DateOnly? DueDate = null,
-    Priority? Priority = null,
-    int? TeamId = null,
-    bool IsDeleted = false);
+    Priority? Priority = null);
 
 /// <summary>What a client gets back. This is the shape the frontend depends on.</summary>
 public sealed record TodoResponse(

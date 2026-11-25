@@ -76,3 +76,129 @@ db.Todos.Where(t => t.TeamId == TeamId).FirstOrDefaultAsync(t => t.Id == id, can
 
 Alla fyra endpoints hämtar uppgiften via `FindAsync`, så en ändring lagar alla fyra. En uppgift som tillhör ett annat
 team ser nu ut precis som en uppgift som inte finns: 404, inte 403, så att angriparen inte får veta att den finns.
+
+## Hål 2: fält som formuläret aldrig visar (MB-3)
+
+Formuläret skickar bara titel, förfallodatum och prioritet. Men API:t tar emot fler fält än så, och sparar dem.
+JSON ligger i en fil, eftersom Windows PowerShell tar bort citattecknen om JSON skrivs direkt på kommandoraden.
+
+**Bevis 1 (MB-3.1):** sälj skapar en uppgift och skickar med `teamId`.
+
+```powershell
+'{"title":"Smugglad av salj","priority":"Normal","teamId":2}' | Out-File -Encoding ascii body.json
+curl.exe -i -H "X-Team: salj" -H "Content-Type: application/json" --data-binary "@body.json" http://localhost:5069/api/todos
+curl.exe -H "X-Team: ekonomi" http://localhost:5069/api/todos
+```
+
+Svar före lagning: `201 Created` (id 403), och *"Smugglad av salj"* ligger i **ekonomis** lista. Team 2 är ekonomi.
+Sälj kan alltså plantera uppgifter hos ekonomi som ser ut att komma från ekonomis eget team.
+
+**Bevis 2 (MB-3.2):** sälj flyttar sin egen uppgift 101 till ekonomi.
+
+```powershell
+'{"title":"Ring tillbaka till Volvo om offerten","priority":"High","teamId":2}' | Out-File -Encoding ascii body.json
+curl.exe -i -X PUT -H "X-Team: salj" -H "Content-Type: application/json" --data-binary "@body.json" http://localhost:5069/api/todos/101
+curl.exe -H "X-Team: ekonomi" http://localhost:5069/api/todos
+```
+
+Svar före lagning: `200 OK`, och Volvo-uppgiften ligger nu i ekonomis lista. Den har försvunnit från säljs lista.
+
+**Bevis 3 (MB-3.3):** sälj döljer sin uppgift 102 utan att ta bort den, med flaggan `isDeleted`.
+
+```powershell
+'{"title":"Uppdatera pipeline i CRM","priority":"Normal","isDeleted":true}' | Out-File -Encoding ascii body.json
+curl.exe -i -X PUT -H "X-Team: salj" -H "Content-Type: application/json" --data-binary "@body.json" http://localhost:5069/api/todos/102
+curl.exe -H "X-Team: salj" http://localhost:5069/api/todos
+curl.exe -i -H "X-Team: salj" http://localhost:5069/api/todos/102
+```
+
+Svar före lagning: `200 OK`. Uppgift 102 är borta ur säljs lista, fast ingen har gjort `DELETE`. Den syns inte
+heller i sökningen eller statistiken. Men `GET /api/todos/102` ger fortfarande `200` med uppgiften: appen behandlar
+"borttagen" olika på olika ställen.
+
+| Anrop som sälj | Svar före lagning | Svar efter lagning |
+|---|---|---|
+| `POST` med `teamId: 2` | 201, uppgiften hamnar hos ekonomi | 201, uppgiften hamnar hos sälj. Ekonomi ser den inte. |
+| `PUT /101` med `teamId: 2` | 200, uppgiften flyttas till ekonomi | 200, uppgiften finns kvar hos sälj |
+| `PUT /102` med `isDeleted: true` | 200, uppgiften försvinner ur listan | 200, uppgiften syns kvar i säljs lista |
+
+**Test:** `backend/Starter.Tests/Features/Todos/MassAssignmentTests.cs`, alla tre committade röda innan lagningen.
+Testerna kontrollerar att uppgiften är kvar hos sälj, så de beror inte på vilket nummer ekonomi har.
+
+| Kriterium | Test |
+|---|---|
+| MB-3.1 | `Create_with_another_teams_id_keeps_the_todo_in_my_team` |
+| MB-3.2 | `Update_with_another_teams_id_keeps_the_todo_in_my_team` |
+| MB-3.3 | `Update_with_isDeleted_does_not_hide_the_todo` |
+
+**Lagning:**
+- `CreateTodoRequest` och `UpdateTodoRequest` innehåller bara de fält användaren får ändra: titel, förfallodatum och
+  prioritet. `TeamId` och `IsDeleted` är borttagna, så extra fält i JSON ignoreras.
+- `TodoService` kopierar inte längre team eller borttagen-flagga från requesten.
+- `TodoRepository.AddAsync` sätter alltid teamet från `X-Team`, i stället för bara när inget team redan var satt.
+  Det är försvar på djupet: även om fältet skulle komma tillbaka i en DTO skrivs det över här.
+
+## Hål 3: SQL-injektion i sökningen (MB-4)
+
+**Bevis 1 (MB-4.1):** sälj söker med SQL i sökfältet. `--data-urlencode` kodar texten så att den kan stå i adressen.
+
+```powershell
+curl.exe -G -H "X-Team: salj" "http://localhost:5069/api/todos/search" --data-urlencode "q=' OR 1=1 --"
+```
+
+Svar före lagning: alla tio uppgifter från alla fyra team, bland annat ekonomis *"Bonusunderlag ledningsgrupp
+(konfidentiellt)"* och *"Byt lösenord till bankportalen"*. Ingen av dem innehåller söktexten.
+
+Söktexten klistrades in direkt i SQL-satsen, så frågan blev:
+
+```sql
+SELECT * FROM Todos WHERE TeamId = 1 AND IsDeleted = 0 AND Title LIKE '%' OR 1=1 --%'
+```
+
+`'` avslutade texten, `OR 1=1` gjorde villkoret sant för alla rader, och `--` kommenterade bort resten, inklusive
+team-filtret.
+
+**Bevis 2 (MB-4.2):** ett ensamt citattecken.
+
+```powershell
+curl.exe -i -G -H "X-Team: salj" "http://localhost:5069/api/todos/search" --data-urlencode "q='"
+```
+
+Svar före lagning: `500 Internal Server Error` med `SqliteException: unrecognized token`.
+
+| Anrop | Svar före lagning | Svar efter lagning |
+|---|---|---|
+| Sök på `' OR 1=1 --` | 200 med alla teams uppgifter | 200 och `[]` |
+| Sök på `'` | 500 med databasfel | 200 och `[]` |
+| Sök på `Offert` (vanlig sökning) | Säljs Volvo-uppgift | Samma, oförändrat |
+
+**Test:** `backend/Starter.Tests/Features/Todos/SearchInjectionTests.cs`, båda committade röda innan lagningen.
+
+| Kriterium | Test |
+|---|---|
+| MB-4.1 | `Search_with_sql_returns_no_todos_from_other_teams` |
+| MB-4.2 | `Search_with_a_single_quote_returns_200_and_no_database_error` |
+
+**Lagning:** `TodoRepository.SearchAsync` använde `FromSqlRaw` med användarens text inklistrad. Den använder nu LINQ,
+så att söktexten skickas som en parameter och aldrig blir en del av SQL-satsen:
+
+```csharp
+.Where(t => t.TeamId == TeamId && !t.IsDeleted && EF.Functions.Like(t.Title, $"%{query}%"))
+```
+
+`EF.Functions.Like` i stället för `Title.Contains`, så att sökningen fortfarande inte skiljer på stora och små
+bokstäver. Lagningen tog också bort kodanalysatorns varning EF1002, som hade gjort CI rött.
+
+## Hål 4: felmeddelanden som avslöjar hur appen är byggd
+
+**Bevis (upptäckt under hål 3):** samma anrop med ett ensamt `'` gav, före lagningen av hål 3, ett svar med:
+
+- typen av databas: `Microsoft.Data.Sqlite.SqliteException`
+- hela stacktracen, från controllern ner till databasen
+- filsökvägar på utvecklarens dator, med radnummer: `...\Features\Todos\TodoRepository.cs:line 30`
+- alla headers i anropet, och vilken endpoint och controller som kördes
+
+En angripare lär sig alltså vilken databas appen använder, var den sårbara frågan finns, och att den kraschar på
+citattecken, vilket bekräftar att SQL-injektion fungerar. Svaret kom eftersom API:t kördes i `Development`.
+
+**Test och lagning:** *(fylls i)*

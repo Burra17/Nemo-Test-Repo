@@ -64,8 +64,6 @@ public sealed class TodoService(ITodoRepository repository, DeadlineCalendar cal
             CreatedAt = calendar.Now(),
             DueDate = request.DueDate,
             Priority = request.Priority ?? Priority.Normal,
-            TeamId = request.TeamId ?? 0,
-            IsDeleted = request.IsDeleted,
         };
         await repository.AddAsync(todo, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
@@ -91,12 +89,6 @@ public sealed class TodoService(ITodoRepository repository, DeadlineCalendar cal
         todo.Title = title;
         todo.DueDate = request.DueDate;
         todo.Priority = request.Priority ?? todo.Priority;
-        if (request.TeamId is { } teamId)
-        {
-            todo.TeamId = teamId;
-        }
-
-        todo.IsDeleted = request.IsDeleted;
         await repository.SaveChangesAsync(cancellationToken);
         return OperationResult<TodoResponse>.Ok(ToResponse(todo, today));
     }
