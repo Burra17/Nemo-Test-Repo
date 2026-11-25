@@ -312,5 +312,35 @@ angripare kan köra samma loop i flera fönster samtidigt, tills API:t blir för
 | Anrop | Svar före lagning | Svar efter lagning |
 |---|---|---|
 | 200 sökningar i rad | 200 på alla | |
+| 70 sökningar i rad (gräns 60 per minut) | 200 på alla | 60 st 200, 10 st 429 |
+| Sökning nummer 71 | 200 | `429 Too Many Requests` med `Retry-After: 60` |
+| Ekonomi söker under samma minut | 200 | 200, ekonomi har en egen räknare |
 
-**Test och lagning:** *(fylls i)*
+```powershell
+1..70 | ForEach-Object { curl.exe -s -o NUL -w "%{http_code}`n" -H "X-Team: salj" "http://localhost:5069/api/todos/search?q=offert" } | Group-Object | Select-Object Name, Count
+curl.exe -i -H "X-Team: salj" "http://localhost:5069/api/todos/search?q=offert"
+curl.exe -i -H "X-Team: ekonomi" "http://localhost:5069/api/todos/search?q=bonus"
+```
+
+**Test:** `backend/Starter.Tests/Features/Todos/RateLimitTests.cs`. Testerna sätter gränsen till 3 med
+`RateLimiting:SearchPermitLimit`, så att de inte behöver göra tusentals anrop. Varje test startar en egen app, så att
+de inte delar räknare.
+
+| Kriterium | Test |
+|---|---|
+| MB-7.1 | `One_search_too_many_returns_429_with_retry_after` (rött innan lagningen) |
+| MB-7.2 | `Searches_within_the_limit_return_200` (grönt redan innan, finns för att gränsen inte ska stoppa vanliga användare) |
+
+**Lagning:** den inbyggda rate limitern i ASP.NET Core, med en policy `search` som bara gäller sökningen
+(`[EnableRateLimiting("search")]`):
+
+- Gränsen läses från `RateLimiting:SearchPermitLimit`, med 60 per minut som standard.
+- Avvisade anrop får `429 Too Many Requests` och en `Retry-After`-header.
+- Varje team har en egen räknare (`partitionKey` är `X-Team`). Annars kunde en enda angripare förbruka hela gränsen
+  och stänga av sökningen för alla fyra team, och då hade lagningen själv blivit en DoS-attack.
+
+**Begränsningar:**
+- Eftersom appen litar på `X-Team` den här veckan kan en angripare byta team i headern för att få en ny räknare. När
+  inloggning finns (vecka 4) ska räknaren gälla per användare.
+- Ett fast fönster (fixed window) svarar med hela fönstrets längd i `Retry-After` (60 sekunder), även om fönstret
+  börjar om tidigare. Klienten väntar alltså ibland lite längre än nödvändigt, men aldrig för kort.
