@@ -61,4 +61,21 @@ public sealed class TeamIsolationTests(TodosApiTests.ApiFactory factory) :
         var afterwards = await ClientFor("ekonomi").GetFromJsonAsync<TodoResponse>($"/api/todos/{todo.Id}", Json);
         Assert.False(afterwards!.IsDone);
     }
+
+    [Fact]
+    [Trait("Abuse", "MB-2.2")]
+    public async Task Updating_another_teams_todo_returns_404()
+    {
+        // Arrange
+        var todo = await CreateAsEkonomi("Bokslut december");
+
+        // Act: sälj försöker ändra titeln på ekonomis uppgift
+        var response = await ClientFor("salj").PutAsJsonAsync(
+            $"/api/todos/{todo.Id}", new { title = "Hackad av salj", priority = "Normal" });
+
+        // Assert: 404, och titeln är oförändrad när ekonomi tittar
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var afterwards = await ClientFor("ekonomi").GetFromJsonAsync<TodoResponse>($"/api/todos/{todo.Id}", Json);
+        Assert.Equal("Bokslut december", afterwards!.Title);
+    }
 }
