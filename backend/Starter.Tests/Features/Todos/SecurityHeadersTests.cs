@@ -11,7 +11,7 @@ public sealed class SecurityHeadersTests(TodosApiTests.ApiFactory factory) : ICl
     [InlineData("X-Content-Type-Options", "nosniff")]
     [InlineData("X-Frame-Options", "DENY")]
     [InlineData("Referrer-Policy", "no-referrer")]
-    [InlineData("Cross-Origin-Resource-Policy", "same-site")]
+    [InlineData("Cross-Origin-Resource-Policy", "same-origin")]
     public async Task Every_response_has_the_security_header(string header, string expected)
     {
         // Act: ett helt vanligt anrop
