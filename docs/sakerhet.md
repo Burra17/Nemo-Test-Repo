@@ -265,8 +265,35 @@ Svar före lagning: `204 No Content` med `Access-Control-Allow-Origin: *`, `Acce
 
 | Anrop | Svar före lagning | Svar efter lagning |
 |---|---|---|
-| `GET` med `Origin: https://evil.example` | `Access-Control-Allow-Origin: *` | |
-| Preflight från `https://evil.example` | 204 med `Access-Control-Allow-Origin: *` | |
-| `GET` med `Origin: http://localhost:5173` | `Access-Control-Allow-Origin: *` | |
+| `GET` med `Origin: https://evil.example` | `Access-Control-Allow-Origin: *` | 200, men ingen `Access-Control-Allow-Origin` |
+| Preflight från `https://evil.example` | 204 med `Access-Control-Allow-Origin: *` | 204 utan några `Access-Control-Allow-*`-headers |
+| `GET` med `Origin: http://localhost:5173` | `Access-Control-Allow-Origin: *` | `Access-Control-Allow-Origin: http://localhost:5173` |
 
-**Test och lagning:** *(fylls i)*
+curl får fortfarande svaret från den onda sidans anrop, eftersom CORS inte stoppar något på servern. Men utan
+`Access-Control-Allow-Origin` vägrar webbläsaren att visa svaret för sidan, och efter en preflight utan godkännande
+skickar den aldrig själva anropet.
+
+**Test:** `backend/Starter.Tests/Features/Todos/CorsTests.cs`, båda committade röda innan lagningen.
+
+| Kriterium | Test |
+|---|---|
+| MB-6.1 | `Another_website_is_not_allowed_to_read_the_response` |
+| MB-6.2 | `Our_own_frontend_is_allowed_to_read_the_response` |
+
+MB-6.2 finns för att en "lagning" som tar bort CORS helt annars skulle bli grön på MB-6.1, men stoppa vår egen
+frontend.
+
+**Lagning:**
+
+```csharp
+var frontendOrigin = builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173";
+builder.Services.AddCors(options =>
+    options.AddPolicy(FrontendCorsPolicy, policy => policy
+        .WithOrigins(frontendOrigin)
+        .WithHeaders("Content-Type", "X-Team")
+        .WithMethods("GET", "POST", "PUT", "DELETE")));
+```
+
+Bara vår egen frontend, från inställningen `Frontend:Origin`, får läsa svaren. Headers och metoder är också
+begränsade till det frontenden faktiskt använder. Frontenden är provad efter lagningen: det går att byta team och
+skapa uppgifter.
