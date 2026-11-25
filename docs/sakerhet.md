@@ -469,6 +469,55 @@ app.Use(async (context, next) =>
 MB-8.4 var först `same-site`, men ZAP godkände bara `same-origin`. Testet ändrades först och blev rött, sedan
 ändrades middlewaren.
 
+## GitHubs säkerhetsverktyg (torsdagens del 2–4)
+
+Påslagna 2026-11-25 under Settings → Advanced Security.
+
+| Verktyg | Vad det gör | Resultat |
+|---|---|---|
+| Dependabot alerts | Varnar när ett paket i `main` får en känd sårbarhet | 0 varningar, samma som `dotnet list package` och `npm audit` |
+| Secret scanning | Letar efter nycklar och lösenord i hela historiken | 0 hemligheter |
+| Push protection | Stoppar en push som innehåller en hemlighet | Påslagen |
+| CodeQL | Läser koden och letar efter farliga mönster | Se nedan |
+
+**Var appen har hemligheter idag:** inga riktiga. `ConnectionStrings:Default` är en lokal SQLite-fil utan lösenord,
+`Frontend:Origin` är inte hemlig, och `X-Team` är en header som vem som helst kan skicka. När inloggning kommer
+(vecka 4) får appen hemligheter, till exempel en nyckel som signerar tokens. De ska ligga i user secrets lokalt och i
+miljövariabler eller en nyckelhanterare i produktion, aldrig i `appsettings.json`.
+
+### CodeQL mot den sårbara koden
+
+CodeQL med standardinställningen skannar bara `main` och PR:er mot `main`. `main` har bara startprojektets kod, och
+gav 0 fynd. För att låta CodeQL granska den sårbara koden öppnades en utkast-PR mot `main` (#34) med koden från
+`exercise/vecka-3-holes`. Den mergades aldrig.
+
+| Frågesvit | C# | JavaScript/TypeScript | Actions |
+|---|---|---|---|
+| Default | 0 fynd (52 regler) | 0 (87 regler) | 0 (17 regler) |
+| Extended | **2 fynd** (63 regler) | 0 (103 regler) | 0 (23 regler) |
+
+Fynden med Extended, båda på `Delete` i `TodosController.cs`:
+
+| Regel | Allvar |
+|---|---|
+| `cs/web/insecure-direct-object-reference`: Insecure Direct Object Reference | Hög |
+| `cs/web/missing-function-level-access-control`: Missing function level access control | Hög |
+
+**Vad CodeQL hittade:** något som liknar hål 1, alltså att en uppgift kan tas bort bara med sitt id. Men regeln
+tittar efter ett *mönster*: en action som tar bort något utifrån ett id, utan någon kontroll av behörighet (till
+exempel `[Authorize]`) i controllern. Den vet inte att det finns team. Den flaggade bara `Delete`, inte `GET`, `PUT`
+eller `PUT /done`, fast alla fyra hade samma hål. Och vår lagning ligger i `TodoRepository`, inte i controllern, så
+fynden kommer troligen att finnas kvar även i den lagade koden. Det är inte kontrollerat.
+
+**Vad CodeQL inte hittade:** SQL-injektionen i hål 3, varken med Default eller Extended. Det mest förvånande, eftersom
+det är ett klassiskt mönster. En trolig förklaring är att CodeQL analyserar C# utan att bygga koden, och då inte
+känner igen `FromSqlRaw` från EF Core som en farlig metod. C#-kompilatorns egen analysator för EF Core hittade
+däremot hålet direkt (varning EF1002), och det var den varningen som gjorde CI rött. Hål 2, 4, 5 och 6 hittades inte
+heller.
+
+**Slutsats:** inget enskilt verktyg hittade mer än en bit av ett hål. Det verktyg som hittade mest var det som kan
+just vårt ramverk (EF1002), och det som hittade allt var att läsa koden med hotmodellen bredvid och prova med curl.
+
 ## Sammanfattning
 
 | | Antal |
