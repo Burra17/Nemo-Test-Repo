@@ -199,6 +199,39 @@ bokstäver. Lagningen tog också bort kodanalysatorns varning EF1002, som hade g
 - alla headers i anropet, och vilken endpoint och controller som kördes
 
 En angripare lär sig alltså vilken databas appen använder, var den sårbara frågan finns, och att den kraschar på
-citattecken, vilket bekräftar att SQL-injektion fungerar. Svaret kom eftersom API:t kördes i `Development`.
+citattecken, vilket bekräftar att SQL-injektion fungerar.
 
-**Test och lagning:** *(fylls i)*
+**Orsak:** `Program.cs` anropade `app.UseDeveloperExceptionPage()` utan någon kontroll av miljön. Utvecklarsidan
+visades alltså i alla miljöer, även i produktion.
+
+**Varför inget curl-bevis efter lagningen:** det enda anrop som kraschade, sökningen med `'`, lagades redan i hål 3.
+Det finns ingen endpoint kvar som ger 500. Därför bevisas hålet med ett test som tvingar fram ett fel. Det är också
+poängen med lagningen: felhanteringen måste vara säker oavsett vad som kraschar, även fel vi inte känner till än.
+
+**Test:** `backend/Starter.Tests/Features/Todos/ErrorDetailsTests.cs`, committat rött innan lagningen. Testet startar
+API:t i **Production** och byter ut repositoryt mot `ThrowingTodoRepository`, som kastar ett undantag med ett
+"hemligt" meddelande. Testet kontrollerar att svaret är 500 men inte innehåller meddelandet eller klassnamnet.
+
+| Kriterium | Test |
+|---|---|
+| MB-5.1 | `Unexpected_error_outside_development_returns_500_without_details` |
+
+Före lagningen gick statuskoden igenom (utvecklarsidan svarar också 500), men testet föll på att det hemliga
+meddelandet fanns i svaret.
+
+**Lagning:**
+
+```csharp
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler();
+}
+```
+
+Utanför Development svarar API:t nu med ett kort ProblemDetails (`"title":"An error occurred while processing your
+request.","status":500`), utan meddelande, stacktrace eller headers. Hela felet hamnar fortfarande i serverns logg,
+så att utvecklaren kan felsöka. I Development visas utvecklarsidan som förut (MB-5.2).
