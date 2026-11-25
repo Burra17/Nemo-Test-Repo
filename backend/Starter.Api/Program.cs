@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Starter.Api.Data;
 using Starter.Api.Features.Teams;
@@ -32,6 +33,28 @@ builder.Services.AddCors(options =>
         .WithHeaders("Content-Type", "X-Team")
         .WithMethods("GET", "POST", "PUT", "DELETE")));
 
+var searchPermitLimit = builder.Configuration.GetValue("RateLimiting:SearchPermitLimit", 60);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, _) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+        }
+
+        return ValueTask.CompletedTask;
+    };
+    options.AddPolicy("search", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: httpContext.Request.Headers[TeamContext.HeaderName].ToString(),
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = searchPermitLimit,
+            Window = TimeSpan.FromMinutes(1),
+        }));
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -55,6 +78,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors(FrontendCorsPolicy);
+app.UseRateLimiter();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

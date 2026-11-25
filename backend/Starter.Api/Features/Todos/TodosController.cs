@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Starter.Api.Shared;
 
 namespace Starter.Api.Features.Todos;
@@ -15,6 +16,7 @@ public sealed class TodosController(TodoService service) : ControllerBase
         return Ok(result.Data);
     }
 
+    [EnableRateLimiting("search")]
     [HttpGet("search")]
     public async Task<ActionResult<IReadOnlyList<TodoResponse>>> Search([FromQuery] string q, CancellationToken cancellationToken)
     {
