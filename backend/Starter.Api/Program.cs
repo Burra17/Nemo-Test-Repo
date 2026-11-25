@@ -57,6 +57,16 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "no-referrer";
+    headers["Cross-Origin-Resource-Policy"] = "same-site";
+    await next();
+});
+
 using (var scope = app.Services.CreateScope())
 {
     // Good enough for a starter. A real project uses EF Core migrations instead.
