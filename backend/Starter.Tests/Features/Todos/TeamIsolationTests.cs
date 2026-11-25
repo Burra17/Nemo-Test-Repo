@@ -14,8 +14,7 @@ public sealed class TeamIsolationTests(TodosApiTests.ApiFactory factory) :
     private static readonly JsonSerializerOptions Json =
         new(JsonSerializerDefaults.Web)
         {
-            Converters = { new
-                JsonStringEnumConverter() }
+            Converters = { new JsonStringEnumConverter() }
         };
 
     private HttpClient ClientFor(string team)
@@ -23,6 +22,12 @@ public sealed class TeamIsolationTests(TodosApiTests.ApiFactory factory) :
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Team", team);
         return client;
+    }
+
+    private async Task<TodoResponse> CreateAsEkonomi(string title)
+    {
+        var created = await ClientFor("ekonomi").PostAsJsonAsync("/api/todos", new { title });
+        return (await created.Content.ReadFromJsonAsync<TodoResponse>(Json))!;
     }
 
     [Fact]
@@ -39,5 +44,21 @@ public sealed class TeamIsolationTests(TodosApiTests.ApiFactory factory) :
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.DoesNotContain("Hemlig lönekörning", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    [Trait("Abuse", "MB-2.1")]
+    public async Task Marking_another_teams_todo_done_returns_404()
+    {
+        // Arrange
+        var todo = await CreateAsEkonomi("Betala leverantörer");
+
+        // Act: sälj försöker bocka av ekonomis uppgift
+        var response = await ClientFor("salj").PutAsync($"/api/todos/{todo.Id}/done", null);
+
+        // Assert: 404, och uppgiften är fortfarande inte klar när ekonomi tittar
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var afterwards = await ClientFor("ekonomi").GetFromJsonAsync<TodoResponse>($"/api/todos/{todo.Id}", Json);
+        Assert.False(afterwards!.IsDone);
     }
 }
