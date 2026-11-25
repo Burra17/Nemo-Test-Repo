@@ -55,4 +55,20 @@ public sealed class MassAssignmentTests(TodosApiTests.ApiFactory factory) :
         var afterwards = await ClientFor("salj").GetAsync($"/api/todos/{todo.Id}");
         Assert.Equal(HttpStatusCode.OK, afterwards.StatusCode);
     }
+
+    [Fact]
+    [Trait("Abuse", "MB-3.3")]
+    public async Task Update_with_isDeleted_does_not_hide_the_todo()
+    {
+        // Arrange: sälj skapar en egen uppgift
+        var created = await ClientFor("salj").PostAsJsonAsync("/api/todos", new { title = "Ska inte kunna gömmas" });
+        var todo = await created.Content.ReadFromJsonAsync<TodoResponse>(Json);
+
+        // Act: sälj ändrar den och skickar med borttagen-flaggan, som formuläret aldrig visar
+        await ClientFor("salj").PutAsJsonAsync(
+            $"/api/todos/{todo!.Id}", new { title = "Ska inte kunna gömmas", priority = "Normal", isDeleted = true });
+
+        // Assert: uppgiften syns fortfarande i säljs lista
+        Assert.Contains("Ska inte kunna gömmas", await TitlesFor("salj"));
+    }
 }
