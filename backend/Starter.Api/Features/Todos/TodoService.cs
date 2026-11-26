@@ -61,4 +61,7 @@ public sealed class TodoService(ITodoRepository repository, TimeProvider clock)
 
     private static OverdueTodoResponse ToOverdueResponse(Todo todo, DateOnly today) =>
         new(todo.Id, todo.Title, todo.DueDate!.Value, today.DayNumber - todo.DueDate!.Value.DayNumber);
+
+    public Task<OperationResult<TodoStatsResponse>> StatsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(OperationResult<TodoStatsResponse>.Ok(new TodoStatsResponse(0, 0, 0, null)));
 }

@@ -7,3 +7,6 @@ public sealed record CreateTodoRequest(string Title, DateOnly? DueDate = null);
 public sealed record TodoResponse(int Id, string Title, bool IsDone, DateTimeOffset CreatedAt, DateOnly? DueDate);
 
 public sealed record OverdueTodoResponse(int Id, string Title, DateOnly DueDate, int DaysLate);
+
+/// <summary>Saras mätvärde (Story 4). OnTimeRate är null tills något med förfallodatum har blivit klart.</summary>
+public sealed record TodoStatsResponse(int CompletedOnTime, int CompletedLate, int OverdueNow, double? OnTimeRate);
