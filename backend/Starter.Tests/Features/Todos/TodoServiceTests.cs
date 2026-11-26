@@ -173,4 +173,20 @@ public sealed class TodoServiceTests
         var overdue = Assert.Single(result.Data!);
         Assert.Equal("Sen", overdue.Title);
     }
+
+    [Fact]
+    [Trait("Krav", "AK-4.3")]
+    public async Task Stats_without_completed_todos_has_no_on_time_rate()
+    {
+        // Arrange: en uppgift med förfallodatum, men ingen är klar än
+        await _repository.AddAsync(new Todo { Title = "Inte klar", DueDate = new DateOnly(2026, 11, 20) }, CancellationToken.None);
+
+        // Act
+        var result = await _service.StatsAsync(CancellationToken.None);
+
+        // Assert: "ingen data än" är inte samma sak som 0 %
+        Assert.Equal(0, result.Data!.CompletedOnTime);
+        Assert.Equal(0, result.Data.CompletedLate);
+        Assert.Null(result.Data.OnTimeRate);
+    }
 }
