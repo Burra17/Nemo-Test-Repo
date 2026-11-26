@@ -10,9 +10,14 @@ public static class TodoDeadlines
     public static bool IsOverdue(Todo todo, DateOnly today) =>
         todo.DueDate != null && todo.DueDate < today && !todo.IsDone;
 
-    public static DateOnly TodayInSweden(TimeProvider clock)
+    public static DateOnly TodayInSweden(TimeProvider clock) => DateInSweden(clock.GetUtcNow());
+
+    public static bool WasCompletedOnTime(DateOnly dueDate, DateTimeOffset completedAt) =>
+        DateInSweden(completedAt) <= dueDate;
+
+    private static DateOnly DateInSweden(DateTimeOffset moment)
     {
-        var swedishNow = TimeZoneInfo.ConvertTime(clock.GetUtcNow(), Stockholm);
-        return DateOnly.FromDateTime(swedishNow.DateTime);
+        var swedishTime = TimeZoneInfo.ConvertTime(moment, Stockholm);
+        return DateOnly.FromDateTime(swedishTime.DateTime);
     }
 }
