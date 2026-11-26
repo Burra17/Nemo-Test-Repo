@@ -21,3 +21,6 @@ coverage/
 .idea/
 .DS_Store
 Thumbs.db
+
+# BenchmarkDotNet resultatfiler
+BenchmarkDotNet.Artifacts/
