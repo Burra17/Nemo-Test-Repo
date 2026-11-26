@@ -31,7 +31,18 @@ ska se vad som måste göras först, och att andelen uppgifter som blir klara i 
 | **Tidsram** | 4 veckor efter driftsättning |
 | **Hur vi mäter** | `GET /api/todos/stats` räknar ut andelen ur systemet, så att ingen behöver räkna för hand |
 
-**Uppföljning:** *(fyll i: när, hur och med vem du följer upp siffran efter fyra veckor, se Övning 8)*
+**Uppföljning:**
+
+- **När:** ett möte fyra veckor efter driftsättning, bokat redan samma dag som funktionen driftsätts, så att det inte
+  glöms bort. En kortare avstämning efter två veckor, för att se att siffran alls rör sig.
+- **Med vem:** Sara, som äger målet, och gärna en eller två från teamet, som kan berätta varför en uppgift blev sen.
+- **Hur:** vi hämtar `GET /api/todos/stats` tillsammans och jämför andelen klara i tid med nuläget (60 %) och målet
+  (85 %). Siffran räknas bara på uppgifter som blivit klara *efter* driftsättningen, eftersom äldre uppgifter saknar
+  tidpunkt för när de blev klara.
+- **Vad vi frågar:** har teamet slutat missa deadlines, eller har de bara slutat sätta datum? Om antalet uppgifter
+  med förfallodatum har sjunkit kraftigt kan andelen se bra ut utan att något har blivit bättre.
+- **Om målet inte är nått:** vi tittar på de sena uppgifterna tillsammans och letar mönster, till exempel att vissa
+  sorters uppgifter alltid blir sena, och bestämmer nästa steg med Sara.
 
 ## 3. Frågor vi ställde, och svaren
 
