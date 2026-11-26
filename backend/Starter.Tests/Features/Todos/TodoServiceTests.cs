@@ -173,4 +173,63 @@ public sealed class TodoServiceTests
         var overdue = Assert.Single(result.Data!);
         Assert.Equal("Sen", overdue.Title);
     }
+
+    [Fact]
+    [Trait("Krav", "AK-4.3")]
+    public async Task Stats_without_completed_todos_has_no_on_time_rate()
+    {
+        // Arrange: en uppgift med förfallodatum, men ingen är klar än
+        await _repository.AddAsync(new Todo { Title = "Inte klar", DueDate = new DateOnly(2026, 11, 20) }, CancellationToken.None);
+
+        // Act
+        var result = await _service.StatsAsync(CancellationToken.None);
+
+        // Assert: "ingen data än" är inte samma sak som 0 %
+        Assert.Equal(0, result.Data!.CompletedOnTime);
+        Assert.Equal(0, result.Data.CompletedLate);
+        Assert.Null(result.Data.OnTimeRate);
+    }
+
+    [Fact]
+    [Trait("Krav", "AK-4.1")]
+    public async Task MarkDone_saves_when_the_todo_was_completed()
+    {
+        // Arrange
+        var todo = new Todo { Title = "Skicka offert", DueDate = new DateOnly(2026, 11, 20) };
+        await _repository.AddAsync(todo, CancellationToken.None);
+
+        // Act
+        await _service.MarkDoneAsync(todo.Id, CancellationToken.None);
+
+        // Assert: tidpunkten kommer från klockan, inte från DateTime.Now
+        Assert.Equal(_clock.GetUtcNow(), todo.CompletedAt);
+    }
+
+    [Fact]
+    [Trait("Krav", "AK-4.1")]
+    [Trait("Krav", "AK-4.2")]
+    public async Task Stats_count_on_time_late_and_overdue_todos()
+    {
+        // Arrange: tre uppgifter som alla ska vara klara idag (2026-11-16)
+        var today = new DateOnly(2026, 11, 16);
+        var onTime = new Todo { Title = "I tid", DueDate = today };
+        var late = new Todo { Title = "Sen", DueDate = today };
+        var notDone = new Todo { Title = "Inte klar", DueDate = today };
+        foreach (var todo in new[] { onTime, late, notDone })
+        {
+            await _repository.AddAsync(todo, CancellationToken.None);
+        }
+
+        // Act: den första blir klar idag, sedan går det en dag och den andra blir klar
+        await _service.MarkDoneAsync(onTime.Id, CancellationToken.None);
+        _clock.Advance(TimeSpan.FromDays(1));
+        await _service.MarkDoneAsync(late.Id, CancellationToken.None);
+        var result = await _service.StatsAsync(CancellationToken.None);
+
+        // Assert: en i tid, en sen, en försenad just nu, och hälften klara i tid
+        Assert.Equal(1, result.Data!.CompletedOnTime);
+        Assert.Equal(1, result.Data.CompletedLate);
+        Assert.Equal(1, result.Data.OverdueNow);
+        Assert.Equal(0.5, result.Data.OnTimeRate);
+    }
 }

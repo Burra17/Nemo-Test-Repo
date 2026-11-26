@@ -46,6 +46,7 @@ public sealed class TodoService(ITodoRepository repository, TimeProvider clock)
         }
 
         todo.IsDone = true;
+        todo.CompletedAt = clock.GetUtcNow();
         await repository.SaveChangesAsync(cancellationToken);
         return OperationResult<TodoResponse>.Ok(ToResponse(todo));
     }
@@ -55,6 +56,20 @@ public sealed class TodoService(ITodoRepository repository, TimeProvider clock)
         var today = TodoDeadlines.TodayInSweden(clock);
         var todos = await repository.ListOverdueAsync(today, cancellationToken);
         return OperationResult<IReadOnlyList<OverdueTodoResponse>>.Ok(todos.Select(t => ToOverdueResponse(t, today)).ToList());
+    }
+
+    public async Task<OperationResult<TodoStatsResponse>> StatsAsync(CancellationToken cancellationToken)
+    {
+        var today = TodoDeadlines.TodayInSweden(clock);
+        var todos = await repository.ListAsync(cancellationToken);
+
+        var completed = todos.Where(t => t.DueDate != null && t.CompletedAt != null).ToList();
+        var onTime = completed.Count(t => TodoDeadlines.WasCompletedOnTime(t.DueDate!.Value, t.CompletedAt!.Value));
+        var late = completed.Count - onTime;
+        var overdueNow = todos.Count(t => TodoDeadlines.IsOverdue(t, today));
+        double? onTimeRate = completed.Count == 0 ? null : (double)onTime / completed.Count;
+
+        return OperationResult<TodoStatsResponse>.Ok(new TodoStatsResponse(onTime, late, overdueNow, onTimeRate));
     }
 
     private static TodoResponse ToResponse(Todo todo) => new(todo.Id, todo.Title, todo.IsDone, todo.CreatedAt, todo.DueDate);
